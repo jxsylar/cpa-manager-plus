@@ -1,0 +1,105 @@
+# 全新部署：直接挂载本地目录，无需定义命名 volumes。
+# DATA_ROOT 是宿主机数据根目录，默认 ./data；只用于解析挂载路径，不传入业务容器。
+# CLI_PROXY_IMAGE / CPA_MANAGER_IMAGE 用于选择镜像版本，不是应用运行参数。
+name: cpa-manager-plus
+
+services:
+  # 初始化任务：只在 config.yaml 不存在时复制默认模板，已有配置始终保留。
+  # init 可以重复运行，Web 页面保存的 provider 和客户端 Key 不会被覆盖。
+  init:
+    image: ${CLI_PROXY_IMAGE:-eceasy/cli-proxy-api:v7.2.156}
+    # 禁止 Docker 自动重启；不阻止 compose up/start/restart 手动再次运行它。
+    restart: "no"
+    entrypoint: ["bash", "/bootstrap/init.sh"]
+    volumes:
+      # init 看到整个数据根目录；模板和脚本只读挂载，运行配置另写入 /data。
+      - ${DATA_ROOT:-./data}:/data
+      - ./config.template.yaml:/bootstrap/config.template.yaml:ro
+      - ./scripts/init.sh:/bootstrap/init.sh:ro
+
+  cli-proxy-api:
+    image: ${CLI_PROXY_IMAGE:-eceasy/cli-proxy-api:v7.2.156}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    depends_on:
+      # 先等 init 成功退出，确保 /config/config.yaml 已生成。
+      init:
+        condition: service_completed_successfully
+    working_dir: /config
+    # 镜像默认命令是相对路径 ./CLIProxyAPI，切换工作目录后需使用绝对路径。
+    command: ["/CLIProxyAPI/CLIProxyAPI", "--config", "/config/config.yaml"]
+    environment:
+      # CLIProxyAPI 的部署模式；默认空值使用普通模式，cloud 会启用缺少配置时等待的云模式。
+      DEPLOY: ${DEPLOY:-}
+      # CLIProxyAPI 容器时区，用于时间显示和日志时间。
+      TZ: Asia/Shanghai
+      # CLIProxyAPI 原生管理密码，供其管理页面及 Manager 调用管理接口；来自 CPA_MANAGEMENT_KEY。
+      MANAGEMENT_PASSWORD: ${CPA_MANAGEMENT_KEY:?请先执行 ./generate-env.sh 或填写 CPA_MANAGEMENT_KEY}
+    ports:
+      - "8317:8317"
+      - "8085:8085"
+      - "1455:1455"
+      - "54545:54545"
+      - "51121:51121"
+      - "11451:11451"
+    volumes:
+      # 与 init 的 /data/cli-proxy-api/config 指向同一个宿主机目录。
+      - ${DATA_ROOT:-./data}/cli-proxy-api/config:/config
+      - ${DATA_ROOT:-./data}/cli-proxy-api/auths:/root/.cli-proxy-api
+      # 日志和管理页面缓存在 /config/logs、/config/static，由整个 /config 挂载持久化。
+    healthcheck:
+      # 当前 CLIProxyAPI 镜像含 Bash，但没有 curl/wget。
+      # $$ 转义 Compose 的变量替换，容器中的 Bash 最终读到 $status。
+      test:
+        - CMD-SHELL
+        - >-
+          if command -v wget >/dev/null 2>&1; then
+            wget -qO- http://127.0.0.1:8317/ >/dev/null;
+          elif command -v curl >/dev/null 2>&1; then
+            curl -fsS http://127.0.0.1:8317/ >/dev/null;
+          else
+            bash -ec 'exec 3<>/dev/tcp/127.0.0.1/8317;
+            printf "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3;
+            IFS= read -r status <&3; [[ "$$status" == *" 200 "* ]]';
+          fi
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
+  cpa-manager-plus:
+    image: ${CPA_MANAGER_IMAGE:-seakee/cpa-manager-plus:1.12.10}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    depends_on:
+      # CLIProxyAPI 的 HTTP 健康检查通过后才启动 Manager。
+      cli-proxy-api:
+        condition: service_healthy
+    ports:
+      - "18317:18317"
+    environment:
+      # Manager 在容器内监听所有网络接口的 18317 端口，供端口映射和其他容器访问。
+      HTTP_ADDR: "0.0.0.0:18317"
+      # Manager 保存用量数据及相关文件的根目录。
+      USAGE_DATA_DIR: /data
+      # Manager 的 SQLite 数据库路径，保存用量记录和应用配置。
+      USAGE_DB_PATH: /data/usage.sqlite
+      # 未通过 CPA_MANAGER_DATA_KEY 提供密钥时使用的加密密钥文件路径。
+      CPA_MANAGER_DATA_KEY_PATH: /data/data.key
+      # 加密数据库中敏感配置的 32 字节 Base64 密钥；已有数据时不能随意更换。
+      CPA_MANAGER_DATA_KEY: ${CPA_MANAGER_DATA_KEY:?请先执行 ./generate-env.sh 或填写 CPA_MANAGER_DATA_KEY}
+      # 首次创建 Manager 管理员凭据的登录密钥；修改变量不会重置已有管理员凭据。
+      CPA_MANAGER_ADMIN_KEY: ${CPA_MANAGER_ADMIN_KEY:?请先执行 ./generate-env.sh 或填写 CPA_MANAGER_ADMIN_KEY}
+      # Manager 连接 CLIProxyAPI 的内部地址，服务名由 Compose 网络解析，不绕宿主机端口。
+      CPA_UPSTREAM_URL: http://cli-proxy-api:8317
+      # Manager 调用 CLIProxyAPI 管理接口的凭据，必须与对方 MANAGEMENT_PASSWORD 保持一致。
+      CPA_MANAGEMENT_KEY: ${CPA_MANAGEMENT_KEY:?请先执行 ./generate-env.sh 或填写 CPA_MANAGEMENT_KEY}
+    volumes:
+      # Manager 使用自己的数据库目录，不直接读取 CLIProxyAPI 的 config.yaml。
+      - ${DATA_ROOT:-./data}/cpa-manager-plus:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:18317/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s

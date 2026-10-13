@@ -1,0 +1,13 @@
+# 仅用于首次部署创建 config.yaml；后续运行不覆盖 Web 页面保存的配置。
+host: ""
+port: 8317
+remote-management:
+  allow-remote: true
+  # 管理密码由 Compose 中的 MANAGEMENT_PASSWORD 提供。
+  secret-key: ""
+  disable-control-panel: false
+auth-dir: /root/.cli-proxy-api
+# 首次启动为空；先在 Web 页面添加客户端 Key，再配置 provider。
+api-keys: []
+usage-statistics-enabled: true
+logging-to-file: true
