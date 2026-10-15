@@ -5,6 +5,13 @@
 - `seakee/cpa-manager-plus:1.12.10`
 - `eceasy/cli-proxy-api:v7.2.156`
 
+相关项目及详细功能说明：
+
+- [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)：提供模型代理 API 和管理接口。
+- [CPA Manager Plus](https://github.com/seakee/CPA-Manager-Plus)：提供 Web 管理页面。
+
+本仓库提供上述项目的 Compose 部署配置；应用本身的使用说明请参阅各自的上游仓库。
+
 ## 部署前准备
 
 克隆本仓库并进入项目根目录。运行下面的命令前，需要满足：
@@ -156,3 +163,7 @@ docker compose up -d --wait --wait-timeout 120
 ```
 
 升级时先在 `.env` 中设置明确的新镜像版本，然后执行 `docker compose pull` 和上述 `up` 命令。当前固定版本不会自动跟随上游版本。
+
+## 许可证
+
+本仓库的部署配置与脚本采用 [MIT License](LICENSE)；上游应用的许可证请以各自仓库为准。
