@@ -11,3 +11,17 @@ auth-dir: /root/.cli-proxy-api
 api-keys: []
 usage-statistics-enabled: true
 logging-to-file: true
+# 应用日志的调试级别输出；体积很小（约 MB/天），建议保持开启便于排查运行错误。
+debug: true
+# 日志文件总容量上限（MB）；超出后删除最旧的日志文件，0 表示不限制。
+# 默认 1024（1G），避免长期运行写满磁盘；磁盘小可调小该值。
+logs-max-total-size-mb: 1024
+# 未开启请求日志时保留的错误日志文件数量上限；超出后删除最旧的，0 表示不清理。
+error-logs-max-files: 32
+# 请求日志默认关闭：开启后会把每个请求与响应的原文写入磁盘，单请求日志可达数 MB，
+# 配合上面的容量上限会让可回看的时间窗口明显变短。需要排查问题时再打开（两个面板任选其一）：
+#   CPA Manager Plus 面板（:18317/management.html）：配置面板 → 可视化编辑 → 启用「请求日志」开关
+#   CLIProxyAPI 自带面板（:8317/management.html）：配置面板 → 打开「请求日志」弹窗 → 勾选「启用请求日志」并保存
+# 两者修改的是同一份配置，排查完建议关闭；也可取消下一行注释后重启生效。
+# 面板「请求监控」的请求记录来自 Manager 数据库，不受此项影响。
+# request-log: true

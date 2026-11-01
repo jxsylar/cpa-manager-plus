@@ -153,6 +153,11 @@ docker compose up -d --wait --wait-timeout 120
 
 无需单独挂载 `/config/static`，它包含在整个 `/config` 的持久化挂载中。CLIProxyAPI 页面缓存位于 `data/cli-proxy-api/config/static/management.html`。
 
+新部署的模板默认把日志总容量限制为 1G，超出后自动删除最旧的日志；需要更多或更少时，
+在 Web 页面或 `config.yaml` 中调整 `logs-max-total-size-mb`。请求日志（请求/响应原文）默认关闭，
+需要排障时可在 CPA Manager Plus 面板（`:18317/management.html`）的「配置面板 → 可视化编辑」中启用「请求日志」，
+或在 CLIProxyAPI 自带面板（`:8317/management.html`）的「配置面板」里打开「请求日志」弹窗勾选并保存。
+
 `docker compose down` 删除容器和网络，保留本地数据。保全部署时需要同时保存 `.env` 和 `data/`，尤其是数据加密密钥。
 
 ## 日常管理
