@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 本机执行：仅创建项目的 .env，不生成运行配置，也不调用 Docker。
+# 本机执行：仅创建项目的 .env，内容为部署管理凭据和两个镜像版本；不生成运行配置，也不调用 Docker。
 # 命令失败、使用未定义变量或管道中任一命令失败时，立即停止。
 set -euo pipefail
 
@@ -31,7 +31,10 @@ random_hex() { od -An -N32 -tx1 /dev/urandom | tr -d ' \n'; }
 admin_key=$(random_hex)
 management_key=$(random_hex)
 data_key=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
-# .env 只保存部署管理凭据；provider 和客户端 API Key 在 Web 页面配置。
+# 镜像版本随 .env 一并保存，升级时在此处（或生成后的 .env 中）明确修改。
+cli_proxy_image='eceasy/cli-proxy-api:v8.0.48'
+cpa_manager_image='seakee/cpa-manager-plus:1.14.10'
+# .env 保存部署管理凭据和两个镜像版本；provider 和客户端 API Key 在 Web 页面配置。
 {
   printf '# Manager 初始管理员登录密钥；修改变量不会重置已有管理员凭据。\n'
   printf 'CPA_MANAGER_ADMIN_KEY=cpamp_%s\n' "$admin_key"
@@ -39,9 +42,14 @@ data_key=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
   printf 'CPA_MANAGEMENT_KEY=%s\n' "$management_key"
   printf '# Manager 数据加密密钥，32 字节 Base64 编码；已有数据时不要更换。\n'
   printf 'CPA_MANAGER_DATA_KEY=%s\n' "$data_key"
+  printf '\n'
+  printf '# CLIProxyAPI 和 init 使用的镜像版本；Compose 没有兜底版本，升级时改这里。\n'
+  printf 'CLI_PROXY_IMAGE=%s\n' "$cli_proxy_image"
+  printf '# CPA Manager Plus 使用的镜像版本；Compose 没有兜底版本，升级时改这里。\n'
+  printf 'CPA_MANAGER_IMAGE=%s\n' "$cpa_manager_image"
 } > "$env_tmp"
 chmod 600 "$env_tmp"
 # 用硬链接原子创建 .env：如果另一进程已经创建该文件，ln 会失败而不覆盖。
 # 退出时 trap 只删除临时路径，.env 仍保留同一文件内容和 600 权限。
 ln -- "$env_tmp" .env
-printf '已生成 .env；密钥保存在该文件中，请勿提交。\n'
+printf '已生成 .env；密钥和镜像版本保存在该文件中，请勿提交。\n'

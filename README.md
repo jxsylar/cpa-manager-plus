@@ -1,9 +1,9 @@
 # CPA Manager Plus 全新环境部署
 
-使用 Docker Compose 统一运行 CPA Manager Plus 和 CLIProxyAPI，面向全新环境部署。镜像固定为：
+使用 Docker Compose 统一运行 CPA Manager Plus 和 CLIProxyAPI，面向全新环境部署。`generate-env.sh` 默认写入的镜像版本为：
 
-- `seakee/cpa-manager-plus:1.12.10`
-- `eceasy/cli-proxy-api:v7.2.156`
+- `seakee/cpa-manager-plus:1.14.10`
+- `eceasy/cli-proxy-api:v8.0.48`
 
 相关项目及详细功能说明：
 
@@ -24,7 +24,7 @@
 
 ```text
 compose.yaml          # 服务、启动依赖、端口和数据目录挂载
-generate-env.sh       # 本机生成管理凭据，不启动服务
+generate-env.sh       # 本机生成 .env（管理凭据和镜像版本），不启动服务
 .env.example          # 手动配置环境变量的示例
 config.template.yaml  # 首次启动的默认 CLIProxyAPI 配置
 scripts/init.sh       # 容器内准备目录和首次复制配置
@@ -41,7 +41,7 @@ scripts/init.sh       # 容器内准备目录和首次复制配置
 docker compose up -d --wait --wait-timeout 120
 ```
 
-`generate-env.sh` 仅在本机生成权限为 `600` 的 `.env`，不调用 Docker，不覆盖已有 `.env`。文件只保存 Manager 管理员密钥、CLIProxyAPI 管理密钥和 Manager 数据加密密钥。provider 和客户端 API Key 不在 `.env` 中配置。
+`generate-env.sh` 仅在本机生成权限为 `600` 的 `.env`，不调用 Docker，不覆盖已有 `.env`。文件保存 Manager 管理员密钥、CLIProxyAPI 管理密钥、Manager 数据加密密钥，以及 `CLI_PROXY_IMAGE`、`CPA_MANAGER_IMAGE` 两个镜像版本。provider 和客户端 API Key 不在 `.env` 中配置。
 
 首次启动时，init 创建本地数据目录，并将仓库模板复制为 `data/cli-proxy-api/config/config.yaml`。CLIProxyAPI 启动并通过健康检查后，Manager 再启动。无需预先准备运行配置或数据目录。
 
@@ -71,15 +71,17 @@ CLIProxyAPI 的独立管理页面为 <http://localhost:8317/management.html>，�
 
 ## 环境变量
 
-默认由 `generate-env.sh` 自动生成以下三项。若要自己指定管理凭据，可复制 `.env.example` 为 `.env` 后手动填写；脚本不会补全已有文件：
+默认由 `generate-env.sh` 自动生成以下五项。若要自己指定管理凭据或镜像版本，可复制 `.env.example` 为 `.env` 后手动填写；脚本不会补全已有文件：
 
 | 变量 | 用途 |
 | --- | --- |
 | `CPA_MANAGER_ADMIN_KEY` | Manager 初始管理员登录密钥；修改变量不会重置已有管理员凭据 |
 | `CPA_MANAGEMENT_KEY` | CLIProxyAPI 管理密码，同时供 Manager 调用其管理接口 |
 | `CPA_MANAGER_DATA_KEY` | Manager 数据库敏感配置的加密密钥，格式为 32 字节随机值的 Base64 编码；已有数据时不要更换 |
+| `CLI_PROXY_IMAGE` | CLIProxyAPI 和 init 使用的镜像版本，必填，升级时修改 |
+| `CPA_MANAGER_IMAGE` | CPA Manager Plus 使用的镜像版本，必填，升级时修改 |
 
-可选的 `DATA_ROOT`、`CLI_PROXY_IMAGE`、`CPA_MANAGER_IMAGE` 和 `DEPLOY` 已有默认值，无需在 `.env` 中重复定义。`DATA_ROOT` 默认 `./data`，相对路径按 Compose 项目目录解析。
+`CLI_PROXY_IMAGE` 和 `CPA_MANAGER_IMAGE` 为必填项，Compose 不提供兜底版本，未设置或为空时 `docker compose up` 会直接报错。可选的 `DATA_ROOT` 和 `DEPLOY` 已有默认值，无需在 `.env` 中重复定义。`DATA_ROOT` 默认 `./data`，相对路径按 Compose 项目目录解析。
 
 `TZ`、`HTTP_ADDR`、`USAGE_DATA_DIR`、`USAGE_DB_PATH`、`CPA_MANAGER_DATA_KEY_PATH` 和 `CPA_UPSTREAM_URL` 直接在 Compose 中设置，每项都有用途注释。单独在 `.env` 中添加这些同名变量不会覆盖固定值。
 
@@ -89,7 +91,7 @@ CLIProxyAPI 的独立管理页面为 <http://localhost:8317/management.html>，�
 
 ```mermaid
 flowchart TD
-    G[本机 generate-env.sh] --> E[项目 .env：三项管理凭据]
+    G[本机 generate-env.sh] --> E[项目 .env：三项管理凭据和两个镜像版本]
     E --> C[Compose 解析变量]
     T[config.template.yaml] -->|配置不存在时复制| I[init 容器]
     I --> F[本地 data/cli-proxy-api/config/config.yaml]
@@ -162,7 +164,7 @@ docker compose stop
 docker compose up -d --wait --wait-timeout 120
 ```
 
-升级时先在 `.env` 中设置明确的新镜像版本，然后执行 `docker compose pull` 和上述 `up` 命令。当前固定版本不会自动跟随上游版本。
+升级时先在 `.env` 中把 `CLI_PROXY_IMAGE` 和 `CPA_MANAGER_IMAGE` 设置为明确的新版本（两项均为必填，没有内置兜底版本），然后执行 `docker compose pull` 和上述 `up` 命令。当前写入的版本不会自动跟随上游版本。
 
 ## 许可证
 
