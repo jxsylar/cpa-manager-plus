@@ -1,13 +1,14 @@
 # 全新部署：直接挂载本地目录，无需定义命名 volumes。
 # DATA_ROOT 是宿主机数据根目录，默认 ./data；只用于解析挂载路径，不传入业务容器。
 # CLI_PROXY_IMAGE / CPA_MANAGER_IMAGE 用于选择镜像版本，不是应用运行参数。
+# 这两个变量必须在 .env 中显式设置，未设置或为空时 Compose 直接报错，不再有兜底版本。
 name: cpa-manager-plus
 
 services:
   # 初始化任务：只在 config.yaml 不存在时复制默认模板，已有配置始终保留。
   # init 可以重复运行，Web 页面保存的 provider 和客户端 Key 不会被覆盖。
   init:
-    image: ${CLI_PROXY_IMAGE:-eceasy/cli-proxy-api:v7.2.156}
+    image: ${CLI_PROXY_IMAGE:?必须在 .env 中设置 CLI_PROXY_IMAGE，可执行 ./generate-env.sh 生成}
     # 禁止 Docker 自动重启；不阻止 compose up/start/restart 手动再次运行它。
     restart: "no"
     entrypoint: ["bash", "/bootstrap/init.sh"]
@@ -18,7 +19,7 @@ services:
       - ./scripts/init.sh:/bootstrap/init.sh:ro
 
   cli-proxy-api:
-    image: ${CLI_PROXY_IMAGE:-eceasy/cli-proxy-api:v7.2.156}
+    image: ${CLI_PROXY_IMAGE:?必须在 .env 中设置 CLI_PROXY_IMAGE，可执行 ./generate-env.sh 生成}
     restart: unless-stopped
     stop_grace_period: 30s
     depends_on:
@@ -68,7 +69,7 @@ services:
       start_period: 20s
 
   cpa-manager-plus:
-    image: ${CPA_MANAGER_IMAGE:-seakee/cpa-manager-plus:1.12.10}
+    image: ${CPA_MANAGER_IMAGE:?必须在 .env 中设置 CPA_MANAGER_IMAGE，可执行 ./generate-env.sh 生成}
     restart: unless-stopped
     stop_grace_period: 30s
     depends_on:
